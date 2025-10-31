@@ -2,6 +2,7 @@ import { resolve } from "path";
 import { config } from "../config";
 import { User } from "../types/user";
 import ldap, { SearchOptions } from "ldapjs";
+import { ResultParser } from "../utils/resultparser";
 
 
 export class LdapService {
@@ -25,14 +26,14 @@ export class LdapService {
     const opts: SearchOptions = {
       filter: "(objectClass=user)",
       scope: "sub",
-      attributes: ["cn", "sAMAccountName", "mail"]
+      attributes: ["cn", "name", "userPrincipalName", "sAMAccountName", "logonCount", "lastLogonTimestamp", "memberOf"]
     };
 
     return new Promise((resolve, reject) => {
       const entries: any[] = [];
       this.client.search(config.ldapConfig.searchBase, opts, (err, res) => {
         if (err) return reject(err);
-        res.on("searchEntry", entry => entries.push(entry));
+        res.on("searchEntry", entry => entries.push(ResultParser.parseLDAPSearchEntry(entry)));
         res.on("error", err => reject(err));
         res.on("end", () => resolve(entries));
       });

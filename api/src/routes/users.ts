@@ -7,8 +7,9 @@ export const userRouter = Router();
 
 userRouter.get("/", async (req, res, next) => {
   try {
-    const users = await ldapService.getUsers();
-    res.json(users);
+    const users: any[] = await ldapService.getUsers() as any[];
+    const response = { count: users.length, values: users };
+    res.json(response);
   } catch (err) {
     next(err);
   }
