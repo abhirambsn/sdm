@@ -5,7 +5,14 @@ import { logger } from "../utils/logger";
 import fs from "fs";
 const execFileAsync = util.promisify(execFile);
 
-const ALLOWED_CMDS = new Set(["user", "group", "computer", "dns", "domain", "dbcheck"]);
+const ALLOWED_CMDS = new Set([
+  "user",
+  "group",
+  "computer",
+  "dns",
+  "domain",
+  "dbcheck",
+]);
 
 const ALLOWED_USER_ACTIONS = new Set([
   "create",
@@ -142,7 +149,22 @@ export class SambaService {
 
   async getADInfo() {
     const args = buildSambaToolArgs("domain", "info", ["127.0.0.1"]);
-    return this.run(args);
+    const { stdout: output } = await this.run(args);
+    const lines = output.split("\n");
+    const info: Record<string, string> = {};
+
+    for (const line of lines) {
+      const [key, value] = line.split(":").map((x) => x.trim());
+      if (key && value) {
+        const formattedKey = key.toLowerCase().replace(/\s+/g, "_");
+        info[formattedKey] = value;
+      }
+    }
+
+    return {
+      ...info,
+      status: Object.keys(info).length ? "ok" : "unknown",
+    };
   }
 
   async getSambaStatus() {
@@ -152,9 +174,25 @@ export class SambaService {
         ["systemctl", "status", "samba-ad-dc.service", "--no-pager"],
         { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 }
       );
-      return { stdout, stderr };
+      const serviceInfo: any = {};
+
+      const activeMatch = stdout.match(
+        /Active:\s+(\w+)\s+\((\w+)\)\s+since\s+(.+);/i
+      );
+      const pidMatch = stdout.match(/Main PID:\s+(\d+)/i);
+      const loadedMatch = stdout.match(/Loaded:\s+loaded\s+\(([^;]+)/i);
+
+      serviceInfo.service = "samba-ad-dc";
+      serviceInfo.loaded = loadedMatch ? loadedMatch[1] : "unknown";
+      serviceInfo.active = activeMatch ? activeMatch[1] === "active" : false;
+      serviceInfo.state = activeMatch ? activeMatch[2] : "unknown";
+      serviceInfo.since = activeMatch
+        ? new Date(activeMatch[3] as string).toISOString()
+        : null;
+      serviceInfo.pid = pidMatch ? parseInt(pidMatch[1] as string) : null;
+
+      return serviceInfo;
     } catch (e: any) {
-      // rethrow with stdout/stderr if available
       logger.error(`samba-tool error: ${e.message}`);
       throw e;
     }
