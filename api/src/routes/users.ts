@@ -1,4 +1,4 @@
-import { Request, Router } from "express";
+import { Router } from "express";
 import { ldapService } from "../service/ldap.service";
 import { logger } from "../utils/logger";
 import { sambaService } from "../service/samba.service";
@@ -28,7 +28,7 @@ userRouter.get("/:username", async (req, res, next) => {
 });
 
 userRouter.post("/", async (req, res, next) => {
-  const actor = req?.user?.username || "system"; // if you implement auth
+  const actor = (req as any)?.user?.username || "system"; // if you implement auth
   try {
     const { username, displayName, email, password, mustChangeAtNextLogin } =
       req.body;
@@ -53,7 +53,7 @@ userRouter.post("/", async (req, res, next) => {
 });
 
 userRouter.delete("/:username", async (req, res, next) => {
-  const actor = req?.user?.username || "system";
+  const actor = (req as any)?.user?.username || "system";
   try {
     const username = req.params.username;
     const out = await sambaService.deleteUser(username);
@@ -65,7 +65,7 @@ userRouter.delete("/:username", async (req, res, next) => {
 });
 
 userRouter.post("/:username/disable", async (req, res, next) => {
-  const actor = req.user?.username || "system";
+  const actor = (req as any).user?.username || "system";
   try {
     const username = req.params.username;
     const out = await sambaService.disableUser(username);
@@ -77,7 +77,7 @@ userRouter.post("/:username/disable", async (req, res, next) => {
 });
 
 userRouter.post("/:username/setpassword", async (req, res, next) => {
-  const actor = req.user?.username || "system";
+  const actor = (req as any).user?.username || "system";
   try {
     const username = req.params.username;
     const { password } = req.body;
@@ -90,7 +90,7 @@ userRouter.post("/:username/setpassword", async (req, res, next) => {
 });
 
 userRouter.post("/:username/lock", async (req, res, next) => {
-  const actor = req.user?.username || "system";
+  const actor = (req as any).user?.username || "system";
   try {
     const username = req.params.username;
     const out = await sambaService.lockUserAccount(username);
@@ -102,7 +102,7 @@ userRouter.post("/:username/lock", async (req, res, next) => {
 });
 
 userRouter.post("/:username/unlock", async (req, res, next) => {
-  const actor = req.user?.username || "system";
+  const actor = (req as any).user?.username || "system";
   try {
     const username = req.params.username;
     const out = await sambaService.unlockUserAccount(username);
@@ -114,7 +114,7 @@ userRouter.post("/:username/unlock", async (req, res, next) => {
 });
 
 userRouter.post("/:username/resetpassword", async (req, res, next) => {
-  const actor = req.user?.username || "system";
+  const actor = (req as any).user?.username || "system";
   try {
     const username = req.params.username;
     const { newPassword } = req.body;
