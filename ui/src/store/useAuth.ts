@@ -15,9 +15,11 @@ const useAuthStore = create<AuthState>((set) => ({
     ? (jwtDecode(localStorage.getItem("auth_token") as string) as any)
     : null,
   setToken: (token) => {
+    console.log("DEBUG: Setting token:", token);
     if (token) {
       localStorage.setItem("auth_token", token);
       const decoded = jwtDecode(token) as any;
+      console.log("DEBUG: Decoded token:", decoded);
       set({
         token,
         user: { username: decoded.username, groups: decoded.groups || [] },
@@ -35,10 +37,10 @@ const useAuthStore = create<AuthState>((set) => ({
 }));
 
 export function getToken() {
-  return localStorage.getItem("sambahub_token");
+  return localStorage.getItem("auth_token");
 }
 export function clearAuth() {
-  localStorage.removeItem("sambahub_token");
+  localStorage.removeItem("auth_token");
 }
 
 export default useAuthStore;
