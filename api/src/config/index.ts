@@ -17,4 +17,5 @@ export const config = {
   smbToolPath: process.env.SMB_TOOL_PATH || "/usr/bin/samba-tool",
   smbToolEnabled: process.env.SMB_TOOL_ENABLED === "true" || false,
   jwtSecret: process.env.JWT_SECRET || "your_jwt_secret",
+  smbBackupPath: process.env.SMB_BACKUP_PATH || "/tmp/samba_backups",
 };

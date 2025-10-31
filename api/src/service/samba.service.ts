@@ -1,18 +1,23 @@
 import { execFile } from "child_process";
-import util from 'util';
+import util from "util";
 import { config } from "../config";
 import { logger } from "../utils/logger";
+import fs from "fs";
 const execFileAsync = util.promisify(execFile);
 
-const ALLOWED_CMDS = new Set([
-  "user",
-  "group",
-  "computer",
-  "dns",
-  "domain"
-]);
+const ALLOWED_CMDS = new Set(["user", "group", "computer", "dns", "domain", "dbcheck"]);
 
-const ALLOWED_USER_ACTIONS = new Set(["create", "delete", "disable", "enable", "setpassword", "change", "password", "resetpassword", "modify"]);
+const ALLOWED_USER_ACTIONS = new Set([
+  "create",
+  "delete",
+  "disable",
+  "enable",
+  "setpassword",
+  "change",
+  "password",
+  "resetpassword",
+  "modify",
+]);
 
 function validateUsername(username: string) {
   if (typeof username !== "string") throw new Error("Invalid username");
@@ -22,12 +27,18 @@ function validateUsername(username: string) {
 }
 
 function validatePassword(password: string) {
-  if (typeof password !== "string" || password.length < 8) throw new Error("password too weak");
+  if (typeof password !== "string" || password.length < 8)
+    throw new Error("password too weak");
 }
 
-function buildSambaToolArgs(cmd: string, subcmd: string, params: string[] = []): string[] {
+function buildSambaToolArgs(
+  cmd: string,
+  subcmd: string,
+  params: string[] = []
+): string[] {
   if (!ALLOWED_CMDS.has(cmd)) throw new Error("command not allowed");
-  if (cmd === "user" && !ALLOWED_USER_ACTIONS.has(subcmd)) throw new Error("user action not allowed");
+  if (cmd === "user" && !ALLOWED_USER_ACTIONS.has(subcmd))
+    throw new Error("user action not allowed");
 
   // Example mapping:
   // samba-tool user create username password --must-change-at-next-login=no
@@ -38,15 +49,23 @@ function buildSambaToolArgs(cmd: string, subcmd: string, params: string[] = []):
 export class SambaService {
   private sambaPath = config.smbToolPath;
   private enabled = config.smbToolEnabled;
+  private backupPath = config.smbBackupPath;
 
   private async run(args: string[]) {
     if (!this.enabled) {
       logger.info(`[DRY-RUN] sudo ${this.sambaPath} ${args.join(" ")}`);
-      return { stdout: `[DRY-RUN] sudo ${this.sambaPath} ${args.join(" ")}`, stderr: "" };
+      return {
+        stdout: `[DRY-RUN] sudo ${this.sambaPath} ${args.join(" ")}`,
+        stderr: "",
+      };
     }
 
     try {
-      const { stdout, stderr } = await execFileAsync("/usr/bin/sudo", [this.sambaPath, ...args], { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 });
+      const { stdout, stderr } = await execFileAsync(
+        "/usr/bin/sudo",
+        [this.sambaPath, ...args],
+        { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 }
+      );
       return { stdout, stderr };
     } catch (e: any) {
       // rethrow with stdout/stderr if available
@@ -55,7 +74,11 @@ export class SambaService {
     }
   }
 
-  async createUser(username: string, password: string, mustChangeAtNextLogin = false) {
+  async createUser(
+    username: string,
+    password: string,
+    mustChangeAtNextLogin = false
+  ) {
     validateUsername(username);
     validatePassword(password);
 
@@ -83,14 +106,79 @@ export class SambaService {
   async setUserPassword(username: string, password: string) {
     validateUsername(username);
     validatePassword(password);
-    const args = buildSambaToolArgs("user", "setpassword", [username, `--newpassword=${password}`]);
+    const args = buildSambaToolArgs("user", "setpassword", [
+      username,
+      `--newpassword=${password}`,
+    ]);
     return this.run(args);
   }
 
   async addUserToGroup(username: string, group: string) {
     validateUsername(username);
-    if (!/^[A-Za-z0-9 _.-]{1,64}$/.test(group)) throw new Error("invalid group");
+    if (!/^[A-Za-z0-9 _.-]{1,64}$/.test(group))
+      throw new Error("invalid group");
     const args = buildSambaToolArgs("group", "addmembers", [group, username]);
+    return this.run(args);
+  }
+
+  async getSambaHealth() {
+    const args = buildSambaToolArgs("dbcheck", "--cross-ncs", []);
+    const { stdout: output } = await this.run(args);
+    const result = {} as any;
+
+    const checkedMatch = output.match(
+      /Checked\s+(\d+)\s+objects\s+\((\d+)\s+errors?\)/i
+    );
+    if (checkedMatch) {
+      result.objects_checked = parseInt(checkedMatch[1] as string);
+      result.errors = parseInt(checkedMatch[2] as string);
+      result.status = result.errors === 0 ? "healthy" : "issues";
+    } else {
+      result.raw = output;
+      result.status = "unknown";
+    }
+    return result;
+  }
+
+  async getADInfo() {
+    const args = buildSambaToolArgs("domain", "info", ["127.0.0.1"]);
+    return this.run(args);
+  }
+
+  async getSambaStatus() {
+    try {
+      const { stdout, stderr } = await execFileAsync(
+        "/usr/bin/sudo",
+        ["systemctl", "status", "samba-ad-dc.service", "--no-pager"],
+        { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 }
+      );
+      return { stdout, stderr };
+    } catch (e: any) {
+      // rethrow with stdout/stderr if available
+      logger.error(`samba-tool error: ${e.message}`);
+      throw e;
+    }
+  }
+
+  async resetPassword(username: string, newPassword: string) {
+    validateUsername(username);
+    validatePassword(newPassword);
+    const args = buildSambaToolArgs("user", "setpassword", [
+      username,
+      `--newpassword=${newPassword}`,
+    ]);
+    return this.run(args);
+  }
+
+  async lockUserAccount(username: string) {
+    validateUsername(username);
+    const args = buildSambaToolArgs("user", "disable", [username]);
+    return this.run(args);
+  }
+
+  async unlockUserAccount(username: string) {
+    validateUsername(username);
+    const args = buildSambaToolArgs("user", "enable", [username]);
     return this.run(args);
   }
 }

@@ -30,9 +30,14 @@ userRouter.get("/:username", async (req, res, next) => {
 userRouter.post("/", async (req, res, next) => {
   const actor = req?.user?.username || "system"; // if you implement auth
   try {
-    const { username, displayName, email, password, mustChangeAtNextLogin } = req.body;
+    const { username, displayName, email, password, mustChangeAtNextLogin } =
+      req.body;
     // create via samba-tool (recommended) for proper AD defaults
-    const out = await sambaService.createUser(username, password, mustChangeAtNextLogin);
+    const out = await sambaService.createUser(
+      username,
+      password,
+      mustChangeAtNextLogin
+    );
     await auditService.record("create_user", actor, {
       username,
       displayName,
@@ -78,6 +83,43 @@ userRouter.post("/:username/setpassword", async (req, res, next) => {
     const { password } = req.body;
     const out = await sambaService.setUserPassword(username, password);
     await auditService.record("set_password", actor, { username });
+    res.json({ success: true, out: out.stdout || out });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+userRouter.post("/:username/lock", async (req, res, next) => {
+  const actor = req.user?.username || "system";
+  try {
+    const username = req.params.username;
+    const out = await sambaService.lockUserAccount(username);
+    await auditService.record("lock_user", actor, { username });
+    res.json({ success: true, out });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+userRouter.post("/:username/unlock", async (req, res, next) => {
+  const actor = req.user?.username || "system";
+  try {
+    const username = req.params.username;
+    const out = await sambaService.unlockUserAccount(username);
+    await auditService.record("unlock_user", actor, { username });
+    res.json({ success: true, out });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+userRouter.post("/:username/resetpassword", async (req, res, next) => {
+  const actor = req.user?.username || "system";
+  try {
+    const username = req.params.username;
+    const { newPassword } = req.body;
+    const out = await sambaService.resetPassword(username, newPassword);
+    await auditService.record("reset_password", actor, { username });
     res.json({ success: true, out: out.stdout || out });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
