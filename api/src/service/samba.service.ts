@@ -41,12 +41,12 @@ export class SambaService {
 
   private async run(args: string[]) {
     if (!this.enabled) {
-      logger.info(`[DRY-RUN] samba-tool ${args.join(" ")}`);
-      return { stdout: `[DRY-RUN] samba-tool ${args.join(" ")}`, stderr: "" };
+      logger.info(`[DRY-RUN] sudo ${this.sambaPath} ${args.join(" ")}`);
+      return { stdout: `[DRY-RUN] sudo ${this.sambaPath} ${args.join(" ")}`, stderr: "" };
     }
 
     try {
-      const { stdout, stderr } = await execFileAsync(this.sambaPath, args, { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 });
+      const { stdout, stderr } = await execFileAsync("/usr/bin/sudo", [this.sambaPath, ...args], { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 });
       return { stdout, stderr };
     } catch (e: any) {
       // rethrow with stdout/stderr if available
