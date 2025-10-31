@@ -60,7 +60,10 @@ export class SambaService {
     validatePassword(password);
 
     // safe args:
-    const params = [username, password, `--must-change-at-next-login=${mustChangeAtNextLogin ? "yes" : "no"}`];
+    const params = [username, password];
+    if (mustChangeAtNextLogin) {
+      params.push(`--must-change-at-next-login`);
+    }
     const args = buildSambaToolArgs("user", "create", params);
     return this.run(args);
   }
