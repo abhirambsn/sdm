@@ -11,5 +11,7 @@ export const config = {
     bindCredentials: process.env.LDAP_BIND_CREDENTIALS || "adminpassword",
     searchBase: process.env.LDAP_SEARCH_BASE || "dc=example,dc=com",
     searchFilter: process.env.LDAP_SEARCH_FILTER || "(uid={{username}})",
-  }
+  },
+  smbToolPath: process.env.SMB_TOOL_PATH || "/usr/bin/samba-tool",
+  smbToolEnabled: process.env.SMB_TOOL_ENABLED === "true" || false,
 };
