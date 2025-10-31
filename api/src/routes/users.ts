@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Request, Router } from "express";
 import { ldapService } from "../service/ldap.service";
 import { logger } from "../utils/logger";
 import { sambaService } from "../service/samba.service";

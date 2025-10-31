@@ -14,8 +14,9 @@ export class LdapService {
     "logonCount",
     "lastLogonTimestamp",
     "memberOf",
+    "objectSid"
   ];
-  private groupOU = `OU=Groups,${config.ldapConfig.baseDN}`;
+  private groupOU = `CN=Users,${config.ldapConfig.baseDN}`;
 
   constructor() {
     this.client = ldap.createClient({ url: config.ldapConfig.url });
@@ -128,14 +129,16 @@ export class LdapService {
 
   async addUserToGroup(username: string, groupName: string) {
     await this.bindAdmin();
-    const userDN = `cn=${username},cn=Users,${config.ldapConfig.searchBase}`;
+    const userDN = `cn=${username},${config.ldapConfig.searchBase}`;
     const groupDN = `cn=${groupName},${this.groupOU}`;
+    console.log(`Adding userDN ${userDN} to groupDN ${groupDN}`);
 
     const change = new ldap.Change({
       operation: "add",
-      modification: {
-        member: userDN,
-      },
+      modification: new ldap.Attribute({
+        type: "member",
+        values: [userDN],
+      })
     });
 
     await new Promise((resolve, reject) => {
@@ -148,14 +151,22 @@ export class LdapService {
 
   async removeUserFromGroup(username: string, groupName: string) {
     await this.bindAdmin();
-    const userDN = `cn=${username},cn=Users,${config.ldapConfig.searchBase}`;
-    const groupDN = `cn=${groupName},${this.groupOU}`;
+    const userDN = `CN=${username},${config.ldapConfig.searchBase}`;
+    const groupDN = `CN=${groupName},${this.groupOU}`;
+
+    const members = await this.getGroupMembers(groupName);
+    if (!members.includes(userDN)) {
+      return Promise.resolve({ error: true, message: `User ${username} is not a member of group ${groupName}` });
+    }
+
+    const updatedMembers = members.filter(member => member !== userDN);
 
     const change = new ldap.Change({
-      operation: "delete",
-      modification: {
-        member: userDN,
-      },
+      operation: "replace",
+      modification: new ldap.Attribute({
+        type: "member",
+        values: updatedMembers,
+      })
     });
 
     await new Promise((resolve, reject) => {
@@ -168,11 +179,38 @@ export class LdapService {
     });
   }
 
+  async getGroupMembers(groupName: string): Promise<string[]> {
+    await this.bindAdmin();
+    const opts: SearchOptions = {
+      filter: `(cn=${groupName})`,
+      scope: "sub",
+      attributes: ["member"],
+    };
+
+    return new Promise((resolve, reject) => {
+      this.client.search(this.groupOU, opts, (err, res) => {
+        if (err) return reject(err);
+        let members: string[] = [];
+        res.on("searchEntry", (entry) => {
+          const parsed = ResultParser.parseLDAPSearchEntry(entry);
+          if (Array.isArray(parsed.member)) {
+            members = parsed.member;
+          } else if (parsed.member) {
+            members = [parsed.member];
+          }
+        });
+        res.on("error", (err) => reject(err));
+        res.on("end", () => resolve(members));
+      });
+    });
+  }
+
   async listGroups() {
     await this.bindAdmin();
     const opts: SearchOptions = {
       filter: "(objectClass=group)",
       scope: "one",
+      attributes: ["name", "cn", "description", "distinguishedName", "whenCreated", "whenChanged", "member", "memberOf", "objectSid"]
     };
 
     return new Promise((resolve, reject) => {
@@ -184,6 +222,27 @@ export class LdapService {
         );
         res.on("error", (err) => reject(err));
         res.on("end", () => resolve(entries));
+      });
+    });
+  }
+
+  async getGroupInformation(groupName: string) {
+    await this.bindAdmin();
+    const opts: SearchOptions = {
+      filter: `(cn=${groupName})`,
+      scope: "one",
+      attributes: ["name", "cn", "description", "distinguishedName", "whenCreated", "whenChanged", "member", "memberOf", "objectSid"]
+    };
+
+    return new Promise((resolve, reject) => {
+      let groupInfo: any = null;
+      this.client.search(this.groupOU, opts, (err, res) => {
+        if (err) return reject(err);
+        res.on("searchEntry", (entry) => {
+          groupInfo = ResultParser.parseLDAPSearchEntry(entry);
+        });
+        res.on("error", (err) => reject(err));
+        res.on("end", () => resolve(groupInfo));
       });
     });
   }
