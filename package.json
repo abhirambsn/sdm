@@ -1,0 +1,19 @@
+{
+  "name": "sentinel-directory-manager",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "concurrently \"npm run dev --prefix api\" \"npm run dev --prefix ui\"",
+    "build": "npm run build --prefix ui && npm run build --prefix api",
+    "start": "npm run start --prefix api"
+  },
+  "workspaces": [
+    "api",
+    "ui"
+  ],
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
