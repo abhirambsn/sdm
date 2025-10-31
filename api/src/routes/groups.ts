@@ -6,8 +6,9 @@ export const groupRouter = Router();
 
 groupRouter.get("/", async (req, res) => {
   try {
-    const groups = await ldapService.listGroups();
-    res.json(groups);
+    const groups = await ldapService.listGroups() as any[];
+    const response = { count: groups.length, values: groups };
+    res.json(response);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -16,8 +17,8 @@ groupRouter.get("/", async (req, res) => {
 groupRouter.get("/:groupName/members", async (req, res) => {
   try {
     const groupName = req.params.groupName;
-    const members = await ldapService.getGroupMembers(groupName);
-    res.json({ groupName, members });
+    const members = await ldapService.getGroupMembers(groupName) as any[];
+    res.json({ count: members.length, groupName, members });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

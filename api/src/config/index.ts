@@ -12,7 +12,9 @@ export const config = {
     searchBase: process.env.LDAP_SEARCH_BASE || "dc=example,dc=com",
     searchFilter: process.env.LDAP_SEARCH_FILTER || "(uid={{username}})",
     baseDN: process.env.LDAP_BASE_DN || "dc=example,dc=com",
+    authorizedGroup: process.env.AUTHORIZED_GROUP_DN || "cn=Domain Admins,ou=groups,dc=example,dc=com",
   },
   smbToolPath: process.env.SMB_TOOL_PATH || "/usr/bin/samba-tool",
   smbToolEnabled: process.env.SMB_TOOL_ENABLED === "true" || false,
+  jwtSecret: process.env.JWT_SECRET || "your_jwt_secret",
 };
