@@ -7,11 +7,66 @@ export class AuthService {
     return ldap.createClient({ url: config.ldapConfig.url });
   }
 
+  private async findUserDN(username: string): Promise<string> {
+    const client = this.createClient();
+    return new Promise<string>((resolve, reject) => {
+      // First bind with service account to search for user
+      client.bind(
+        config.ldapConfig.bindDN,
+        config.ldapConfig.bindCredentials,
+        (err) => {
+          if (err) {
+            client.unbind();
+            return reject(err);
+          }
+
+          // Search for user by sAMAccountName or userPrincipalName
+          const filter = `(|(sAMAccountName=${username})(userPrincipalName=${username}))`;
+          const opts: SearchOptions = {
+            scope: "sub",
+            filter: filter,
+            attributes: ["distinguishedName", "dn"],
+          };
+
+          client.search(config.ldapConfig.searchBase, opts, (err, res) => {
+            if (err) {
+              client.unbind();
+              return reject(err);
+            }
+
+            let userDN: string | null = null;
+            res.on("searchEntry", (entry) => {
+              // Get the DN from the entry
+              userDN = entry.attributes.find(attr => attr.type === "distinguishedName")?.values[0] || null;
+            });
+
+            res.on("error", (err) => {
+              client.unbind();
+              reject(err);
+            });
+
+            res.on("end", () => {
+              client.unbind();
+              if (userDN) {
+                resolve(userDN);
+              } else {
+                reject(new Error("User not found"));
+              }
+            });
+          });
+        }
+      );
+    });
+  }
+
   private async bindAsUser(
     username: string,
     password: string
   ): Promise<string> {
-    const userDN = `CN=${username},${config.ldapConfig.searchBase}`;
+    // First find the user's DN
+    const userDN = await this.findUserDN(username);
+    
+    // Then authenticate with the found DN
     const client = this.createClient();
     return new Promise<string>((resolve, reject) => {
       client.bind(userDN, password, (err) => {
@@ -72,6 +127,9 @@ export class AuthService {
       });
       return { accessToken };
     } catch (err: any) {
+      if (err.message === "User not found") {
+        throw new Error("Authentication failed: User not found");
+      }
       throw new Error("Authentication failed with reason: " + err.message);
     }
   }
